@@ -21,6 +21,8 @@ This is a basic implementation of a distributed message chat server, rather than
 * [RabbitMQ Introduction](https://www.rabbitmq.com/tutorials/tutorial-one-python.html)
 * [Pika Introduction](https://pika.readthedocs.io/en/stable/intro.html)
 * [Remote Procedure Call w/ Pika](https://www.rabbitmq.com/tutorials/tutorial-six-python.html)
+* [Connection with RabbitMQ](https://www.cloudamqp.com/blog/how-to-run-rabbitmq-with-python.html)
+* [Channel Basics](https://www.rabbitmq.com/channels.html#basics)
 
 ## Tutorial Videos
 * [Sample FastAPI Post](https://www.youtube.com/watch?v=wS9LfFtXdBs&ab_channel=codeme)
