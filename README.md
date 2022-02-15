@@ -14,12 +14,12 @@ This is a basic implementation of a distributed message chat server, rather than
 * [Python Pydantic](https://pydantic-docs.helpmanual.io/)
 
 ## Microservices / API's
-* [RabbitM Q](https://www.rabbitmq.com/#features)
+* [RabbitMQ](https://www.rabbitmq.com/#features)
 * [FastAPI](https://fastapi.tiangolo.com/)
 
 ## Useful Information
-* [RabbitM Q Introduction](https://www.rabbitmq.com/tutorials/tutorial-one-python.html)
-* [Pika Documentation](https://pika.readthedocs.io/en/stable/)
+* [RabbitMQ Introduction](https://www.rabbitmq.com/tutorials/tutorial-one-python.html)
+* [Pika Introduction](https://pika.readthedocs.io/en/stable/intro.html)
 * [Remote Procedure Call w/ Pika](https://www.rabbitmq.com/tutorials/tutorial-six-python.html)
 
 ## Tutorial Videos
