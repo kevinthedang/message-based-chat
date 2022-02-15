@@ -3,10 +3,10 @@ This is a basic implementation of a distributed message chat server, rather than
 
 ## How to run (for the current build)
 * Make sure to have the Pika, FastAPI, and RabbitMQ on your system
-    * pip install fastapi[all]
-    * pip install pika
+    * ```pip install fastapi[all]```
+    * ```pip install pika```
     * [RabbitMQ Installation Guide](https://www.rabbitmq.com/download.html)
-* python -m uvicorn mess_chat:app --reload
+* ```python -m uvicorn mess_chat:app --reload```
 * Now the cloud server should be running
 
 Name: Kevin Dang
