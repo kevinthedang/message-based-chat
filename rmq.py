@@ -1,5 +1,7 @@
+from gc import callbacks
 import pika
 import logging
+import functools
 
 GET_ALL_MESSAGES = -1
 RMQ_HOST = 'cps-devops.gonzaga.edu'
@@ -10,7 +12,7 @@ RMQ_DEFAULT_PUBLIC_QUEUE = 'general'
 RMQ_DEFAULT_PRIVATE_QUEUE = ''
 RMQ_TEST_HOST = 'localhost'
 RMQ_DEFAULT_VH = '/'
-RMQ_DEFAULT_EXCHANGE_NAME = ''
+RMQ_DEFAULT_EXCHANGE_NAME = 'general'
 RMQ_DEFAULT_EXCHANGE_TYPE = 'fanout'
 LOG_FORMAT = '%(asctime)s -- %(levelname)s -- %(message)s'
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +25,7 @@ class RMQPublisher():
         '''
         self._connection = None
         self._channel = None
+        self._consumer_tag = None
 
     def establish_connection(self) -> None:
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
@@ -47,19 +50,25 @@ class RMQPublisher():
         '''
         self._connection.channel()
         self._channel = self._connection.channel()
-        # self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME)
+        self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME)
 
     def setup_exchange(self, exchange_name):
         ''' Set up the exchange on RabbitMQ
         '''
         self._channel.exchange_declare(
             exchange = exchange_name,
-            exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE)
-
-    def setup_queue(self):
-        ''' Setup the queue on RabbitMQ
-        '''
+            exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE,
+            )
         self._channel.queue_declare(queue = RMQ_DEFAULT_PUBLIC_QUEUE)
+        self._channel.queue_bind(RMQ_DEFAULT_PUBLIC_QUEUE, RMQ_DEFAULT_EXCHANGE_NAME, routing_key='hello')
+        self._channel.basic_qos(prefetch_count= 1)
+        self._consumer_tag = self._channel.basic_consume(queue = RMQ_DEFAULT_PUBLIC_QUEUE, on_message_callback = self.on_message)
+
+    def on_message(self, _unused, basic_deliver, properties, body):
+        self.acknowledge_message(basic_deliver.delivery_tag)
+
+    def acknowledge_message(self, delivery_tag):
+        self._channel.basic_ack(delivery_tag=delivery_tag)
 
     def publish_message(self, message):
         ''' Publish a message to RabbitMQ.
@@ -78,6 +87,7 @@ class RMQPublisher():
         self._channel.basic_consume(queue = RMQ_DEFAULT_PUBLIC_QUEUE, on_message_callback = self.consume_callback, auto_ack = True)
         print(' [*] Waiting for messages...')
         self._channel.start_consuming()
+        self.connection_close()
 
 
 class MessageServer():
@@ -90,9 +100,7 @@ class MessageServer():
         '''
         self._server = RMQPublisher()
         self._connection = self._server.establish_connection()
-        self._server.setup_queue()
         print('Connection Successful.')
-        # self.__public_exchange = pika.create_exchange()
 
     def send_message(self, message_content: str) -> bool:
         ''', target_queue: str'''
@@ -107,8 +115,6 @@ class MessageServer():
         ''' Get a set of messages and return them in a list
             messages will be strings, so it will return a list of strings
         '''
-        self._connection = self._server.establish_connection()
-        self._server.setup_queue()
         self._server.consume_message()
         pass
 
