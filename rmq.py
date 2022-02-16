@@ -11,7 +11,7 @@ RMQ_TEST_HOST = 'localhost'
 RMQ_DEFAULT_VH = '/'
 
 credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
-parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials, heartbeat=6000)
+parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
 connection =  pika.BlockingConnection(parameters=parameters)
 channel = connection.channel()
 
