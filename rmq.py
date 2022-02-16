@@ -27,28 +27,27 @@ class RMQPublisher():
     def establish_connection(self) -> None:
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
         parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
-        self._connection =  pika.BlockingConnection(parameters=parameters)
+        self._connection = pika.BlockingConnection(parameters=parameters)
+        self.connection_open()
 
-    def on_connection_open(self):
+    def connection_open(self):
         ''' This will be called once pika is connected to RabbitMQ.
             This will call for a channel to open.
         '''
         self.open_channel()
 
-    def on_connection_close(self):
+    def connection_close(self):
         ''' This will be called when the connection to RabbitMQ is closed.
         '''
+        self._channel = None
+        self._connection.close()
     
     def open_channel(self):
+        ''' This method will open a new channel with RabbitMQ.
         '''
-        '''
-        self._connection.channel(on_open_callback=self.on_channel_open)
-
-    def on_channel_open(self, channel):
-        '''
-        '''
-        self._channel = channel
-        self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME)
+        self._connection.channel()
+        self._channel = self._connection.channel()
+        # self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME)
 
     def setup_exchange(self, exchange_name):
         ''' Set up the exchange on RabbitMQ
@@ -57,10 +56,28 @@ class RMQPublisher():
             exchange = exchange_name,
             exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE)
 
-    def setup_queue(self, queue_name):
+    def setup_queue(self):
         ''' Setup the queue on RabbitMQ
         '''
         self._channel.queue_declare(queue = RMQ_DEFAULT_PUBLIC_QUEUE)
+
+    def publish_message(self, message):
+        ''' Publish a message to RabbitMQ.
+        '''
+        self._channel.basic_publish(exchange = '', routing_key = 'message', body = message)
+        print(f' [x] {message} was sent to the MQ')
+        self.connection_close()
+        
+
+    def consume_callback(self, method, properties, body):
+        print(" [x] Received %r" % body)
+
+    def consume_message(self):
+        '''
+        '''
+        self._channel.basic_consume(queue = RMQ_DEFAULT_PUBLIC_QUEUE, on_message_callback = self.consume_callback, auto_ack = True)
+        print(' [*] Waiting for messages...')
+        self._channel.start_consuming()
 
 
 class MessageServer():
@@ -73,19 +90,26 @@ class MessageServer():
         '''
         self._server = RMQPublisher()
         self._connection = self._server.establish_connection()
+        self._server.setup_queue()
         print('Connection Successful.')
         # self.__public_exchange = pika.create_exchange()
 
-    def send_message(self, message: str, target_queue: str) -> bool:
+    def send_message(self, message_content: str) -> bool:
+        ''', target_queue: str'''
         ''' This will send a request to send a message to the exchange.
             The exchange will distribute it to all the queues.
         '''
+        self._server.publish_message(message_content)
         pass
 
-    def receieve_messages(self, destination: str, num_messages: int = GET_ALL_MESSAGES) -> list:
+    def receieve_messages(self, num_messages: int = GET_ALL_MESSAGES) -> list:
+        '''destination: str,'''
         ''' Get a set of messages and return them in a list
             messages will be strings, so it will return a list of strings
         '''
+        self._connection = self._server.establish_connection()
+        self._server.setup_queue()
+        self._server.consume_message()
         pass
 
 def main():

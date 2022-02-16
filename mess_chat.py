@@ -22,6 +22,7 @@ async def startup():
 @app.post("/send/")
 async def send(message : Message):
     connect = MessageServer()
+    connect.send_message(message.message)
     list_of_messages.append(message)
     return {
         'message_count' : len(list_of_messages),
@@ -32,6 +33,8 @@ async def send(message : Message):
 # we should use max messages
 @app.get("/messages/")
 async def messages():
+    connect = MessageServer()
+    connect.receieve_messages()
     return {
         'message_count' : len(list_of_messages),
         'data' : list_of_messages
