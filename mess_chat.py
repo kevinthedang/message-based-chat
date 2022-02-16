@@ -2,7 +2,8 @@ from sqlite3 import connect
 from fastapi import FastAPI
 from pydantic import BaseModel
 import pika
-import logging
+
+from rmq import MessageServer
 
 app = FastAPI()
 
@@ -13,10 +14,14 @@ class Message(BaseModel):
     target_channel: str
     message: str
 
+@app.get("/")
+async def startup():
+    return 'The API is currently running'
 # we want to use this to create and send the message
 # we want a Destination and message_content
 @app.post("/send/")
-async def send(self, message : Message):
+async def send(message : Message):
+    connect = MessageServer()
     list_of_messages.append(message)
     return {
         'message_count' : len(list_of_messages),
