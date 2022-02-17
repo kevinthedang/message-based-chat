@@ -9,11 +9,12 @@ RMQ_PORT = 5672
 RMQ_USER = 'class'
 RMQ_PASS = 'CPSC313'
 RMQ_DEFAULT_PUBLIC_QUEUE = 'general'
-RMQ_DEFAULT_PRIVATE_QUEUE = ''
+RMQ_DEFAULT_PRIVATE_QUEUE = 'kevin'
 RMQ_TEST_HOST = 'localhost'
 RMQ_DEFAULT_VH = '/'
 RMQ_DEFAULT_EXCHANGE_NAME = 'general'
 RMQ_DEFAULT_EXCHANGE_TYPE = 'fanout'
+RMQ_ROUTING_KEY = 'my_message'
 LOG_FORMAT = '%(asctime)s -- %(levelname)s -- %(message)s'
 LOGGER = logging.getLogger(__name__)
 
@@ -31,12 +32,6 @@ class RMQPublisher():
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
         parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
         self._connection = pika.BlockingConnection(parameters=parameters)
-        self.connection_open()
-
-    def connection_open(self):
-        ''' This will be called once pika is connected to RabbitMQ.
-            This will call for a channel to open.
-        '''
         self.open_channel()
 
     def connection_close(self):
@@ -48,41 +43,42 @@ class RMQPublisher():
     def open_channel(self):
         ''' This method will open a new channel with RabbitMQ.
         '''
-        self._connection.channel()
         self._channel = self._connection.channel()
-        self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME)
+        self.setup_exchange(RMQ_DEFAULT_EXCHANGE_NAME, RMQ_DEFAULT_EXCHANGE_TYPE)
 
-    def setup_exchange(self, exchange_name):
-        ''' Set up the exchange on RabbitMQ
+    def setup_exchange(self, exchange_name, exchange_type):
+        ''' Set up the exchange on RabbitMQ. The exchange name and type are held
+            as parameters to help with declaring the exchange.
         '''
         self._channel.exchange_declare(
             exchange = exchange_name,
-            exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE,
+            exchange_type = exchange_type,
             )
         self._channel.queue_declare(queue = RMQ_DEFAULT_PUBLIC_QUEUE)
-        self._channel.queue_bind(RMQ_DEFAULT_PUBLIC_QUEUE, RMQ_DEFAULT_EXCHANGE_NAME, routing_key='hello')
-        self._channel.basic_qos(prefetch_count= 1)
-        self._consumer_tag = self._channel.basic_consume(queue = RMQ_DEFAULT_PUBLIC_QUEUE, on_message_callback = self.on_message)
-
-    def on_message(self, _unused, basic_deliver, properties, body):
-        self.acknowledge_message(basic_deliver.delivery_tag)
-
-    def acknowledge_message(self, delivery_tag):
-        self._channel.basic_ack(delivery_tag=delivery_tag)
+        self._channel.queue_bind(exchange = exchange_name, queue = RMQ_DEFAULT_PUBLIC_QUEUE, routing_key = RMQ_ROUTING_KEY)
+        self._channel.basic_qos(prefetch_count = 1)
 
     def publish_message(self, message):
-        ''' Publish a message to RabbitMQ.
+        ''' This method will attempt to publish a message to RabbitMQ.
+            The method will inform of a successful publish or not through the terminal.
         '''
-        self._channel.basic_publish(exchange = '', routing_key = 'message', body = message)
-        print(f' [x] {message} was sent to the MQ')
+        self._channel.confirm_delivery()
+        try: 
+            self._channel.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 2), mandatory = True)
+            print(f' [x] {message} was sent to the MQ')
+        except pika.exceptions.UnroutableError:
+            print('Message was returned.')
         self.connection_close()
         
-
-    def consume_callback(self, method, properties, body):
+    def consume_callback(self, method, basic_deliver, properties, body):
+        ''' This method helps us visualize the body of the message to the cmd.
+            Once the body of the message is received, the connection is closed.
+        '''
         print(" [x] Received %r" % body)
+        self._channel.basic_ack(delivery_tag=basic_deliver.delivery_tag)
 
     def consume_message(self):
-        '''
+        ''' Consume a message from RabbitMQ
         '''
         self._channel.basic_consume(queue = RMQ_DEFAULT_PUBLIC_QUEUE, on_message_callback = self.consume_callback, auto_ack = True)
         print(' [*] Waiting for messages...')
