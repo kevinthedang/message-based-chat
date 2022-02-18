@@ -29,7 +29,7 @@ class MessageServer():
         self._has_private_queue = False
         self._private_queue_name = None
 
-        self.establish_connection()
+        self.server_setup()
 
     def send_message(self, message_content: str, target_queue: str = RMQ_DEFAULT_PUBLIC_QUEUE) -> bool:
         ''' This will send a request to send a message to the exchange.
@@ -67,14 +67,23 @@ class MessageServer():
 
         # ------------------------------------------------------------------------------------------------------------------------------------
 
-    def establish_connection(self) -> None:
+    def server_setup(self):
+        ''' This method sets up -> Server connection, The public and private channels, The public and private queues.
+            This helps with testing the individual calls in the test file.
+        '''
+        self.establish_connection()
+        self.setup_channels()
+        self.setup_exchange()
+
+    def establish_connection(self) -> True:
         ''' This method will establish the connection to the RabbitMQ server.
             Proper authentication credentials and parameters are needed to access the server.
+
+            If no exceptions are raised, then the function will return true (test purpose)
         '''
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
         parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
         self._connection = pika.BlockingConnection(parameters=parameters)
-        self.setup_channels()
     
     def setup_channels(self):
         ''' This method will open both the public and the select private channel
@@ -82,7 +91,6 @@ class MessageServer():
         '''
         self._public_channel = self._connection.channel()
         self._private_channel = self._connection.channel()
-        self.setup_exchange()
 
     def setup_exchange(self):
         ''' Set up the exchange on RabbitMQ. The exchange name and type are held
