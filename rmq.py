@@ -1,5 +1,3 @@
-import queue
-from aiormq import Channel
 import pika
 
 GET_ALL_MESSAGES = -1
@@ -23,7 +21,7 @@ class MessageServer():
     '''
     def __init__(self) -> None:
         ''' Establishing Variables needed to perform connection to RMQ
-            The class just needs to hand a connection and a channel
+            The class just needs to handle a connection, an exchange, channels, etc.
         '''
         self._connection = None
         self._public_channel = None
@@ -89,14 +87,15 @@ class MessageServer():
     def setup_exchange(self):
         ''' Set up the exchange on RabbitMQ. The exchange name and type are held
             as parameters to help with declaring the exchange.
-            This method will only setup the public queue.
+            This method will setup the default public and private queue.
             The exchange will also be set on the public channel allowing other queues from other channels to connect
         '''
         self._public_channel.exchange_declare(
             exchange = RMQ_DEFAULT_EXCHANGE_NAME,
             exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE,
-            )
+            )   
         self.setup_queue(self._public_channel, RMQ_DEFAULT_PUBLIC_QUEUE)
+        self.setup_queue(self._private_channel, RMQ_DEFAULT_PRIVATE_QUEUE)
         
     def setup_queue(self, queue_type, queue_name):
         ''' This method will create a queue and immediately bind it to the exchange,
@@ -106,18 +105,37 @@ class MessageServer():
         queue_type.queue_bind(exchange = RMQ_DEFAULT_EXCHANGE_NAME, queue = queue_name, routing_key = RMQ_ROUTING_KEY)
         queue_type.basic_qos(prefetch_count = 1)
 
+    def remove_queue(self, channel_type):
+        ''' Will remove the queue that is not supposed to receive the message for a target queue.
+        '''
+        if channel_type == RMQ_DEFAULT_PUBLIC_QUEUE:
+            self._private_channel.queue_delete(self._private_queue_name)
+        else:
+            self._public_channel.queue_delete(RMQ_DEFAULT_PUBLIC_QUEUE)
+
+
+    def remake_queue(self, channel_type):
+        ''' Will re-setup the queue that was removed.
+        '''
+        if channel_type == RMQ_DEFAULT_PUBLIC_QUEUE:
+            self.setup_queue(self._private_channel, self._private_queue_name)
+        else:
+            self.setup_queue(self._public_channel, RMQ_DEFAULT_PUBLIC_QUEUE)
+
     def publish_message(self, message, channel_type) -> bool:
         ''' This method will attempt to publish a message to RabbitMQ.
             The method will inform of a successful publish or not through the terminal.
             The channel type will be either the public or private channel
         '''
+        self.remove_queue(channel_type)
         channel_type.confirm_delivery()
         try: 
-            channel_type.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 2), mandatory = True)
+            channel_type.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 1), mandatory = True)
             print(f' [x] "{message}" was sent to the MQ')
         except pika.exceptions.UnroutableError:
             print('Message was returned.')
             return False
+        self.remake_queue(channel_type)
         return True
         
     def consume_message(self, destination_queue, max_messages, channel_type):
@@ -130,7 +148,6 @@ class MessageServer():
         try:
             print(f' [x] Waiting for Messages on {destination_queue}...')
             for method_frame, properties, body in channel_type.consume(queue = destination_queue, inactivity_timeout = 2, auto_ack = True):
-                print(type(method_frame))
                 if not method_frame == None:
                     print('Current Messages Received:' + str(method_frame.delivery_tag))
                     message_list.append(body)
@@ -139,11 +156,10 @@ class MessageServer():
                     current_message_count += 1
                 else:
                     break
-
         except pika.exceptions.UnroutableError:
             print(f' [x] "{destination_queue}" queue not found / No messages in "{destination_queue}"')
         requeued_messages = channel_type.cancel()
-        print("Requeued %i messages " % requeued_messages)
+        print(" [x] Requeued %i messages " % requeued_messages)
         if len(message_list) == 0:
                 message_list.append('No messages currently in queue.')
         return message_list
