@@ -1,4 +1,3 @@
-from debugpy import connect
 from fastapi import FastAPI
 from rmq import MessageServer
 
