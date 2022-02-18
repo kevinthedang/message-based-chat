@@ -1,3 +1,5 @@
+import queue
+from aiormq import Channel
 import pika
 
 GET_ALL_MESSAGES = -1
@@ -13,7 +15,7 @@ RMQ_DEFAULT_EXCHANGE_NAME = 'general'
 RMQ_DEFAULT_EXCHANGE_TYPE = 'fanout'
 RMQ_ROUTING_KEY = 'my_message'
 
-class RMQPublisher():
+class MessageServer():
     ''' This is the RMQ Publisher
         - Only one connection needs to be made.
         - There should be two channels, followed by two queues.s
@@ -24,7 +26,48 @@ class RMQPublisher():
             The class just needs to hand a connection and a channel
         '''
         self._connection = None
-        self._channel = None
+        self._public_channel = None
+        self._private_channel = None
+        self._has_private_queue = False
+        self._private_queue_name = None
+
+        self.establish_connection()
+
+    def send_message(self, message_content: str, target_queue: str = RMQ_DEFAULT_PUBLIC_QUEUE) -> bool:
+        ''' This will send a request to send a message to the exchange.
+            The exchange will distribute it to the queue based on the target queue.
+            it will only return a true if the message was sent correctly, false otherwise.
+        '''
+        target_channel = self._handle_queue(target_queue)
+        return self.publish_message(message_content, target_channel)
+
+    def receieve_messages(self, num_messages: int = GET_ALL_MESSAGES, take_from_queue : str = RMQ_DEFAULT_PUBLIC_QUEUE) -> list:
+        ''' Get a set of messages and return them in a list
+            messages will be strings, so it will return a list of strings
+
+            Since we do not know the current private queue name. we will instantiate it from here when receiving from there.
+        '''
+        take_from_channel = self._handle_queue(take_from_queue)
+        return self.consume_message(destination_queue = take_from_queue, max_messages = num_messages, channel_type = take_from_channel)
+
+    def _handle_queue(self, queue_to_handle):
+        ''' This method handles when an order is received for RabbitMQ.
+            The method checks if there is a new private queue that wants to be accessed and
+            closes the previous one if it exists
+        '''
+        if queue_to_handle != RMQ_DEFAULT_PUBLIC_QUEUE:
+            print('Current Queue:' + queue_to_handle)
+            if self._has_private_queue is True and queue_to_handle != self._private_queue_name:
+                print('Private-Queue Overwritten')
+                self._private_channel.queue_delete(self._private_queue_name)
+            self.setup_queue(self._private_channel, queue_to_handle)
+            self._has_private_queue = True
+            self._private_queue_name = queue_to_handle
+            print('Current Private-Queue name:' + self._private_queue_name)
+            return self._private_channel
+        return self._public_channel
+
+        # ------------------------------------------------------------------------------------------------------------------------------------
 
     def establish_connection(self) -> None:
         ''' This method will establish the connection to the RabbitMQ server.
@@ -33,98 +76,74 @@ class RMQPublisher():
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
         parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
         self._connection = pika.BlockingConnection(parameters=parameters)
-        self.setup_channel()
-
-    def connection_close(self):
-        ''' This will be called when the connection to RabbitMQ is closed.
-        '''
-        self._channel.close()
-        self._channel = None
-        self._connection.close()
+        self.setup_channels()
     
-    def setup_channel(self):
-        ''' This method will open a new channel with RabbitMQ.
+    def setup_channels(self):
+        ''' This method will open both the public and the select private channel
+            for sending messages.
         '''
-        self._channel = self._connection.channel()
+        self._public_channel = self._connection.channel()
+        self._private_channel = self._connection.channel()
+        self.setup_exchange()
 
-    def setup_exchange(self, queue_name):
+    def setup_exchange(self):
         ''' Set up the exchange on RabbitMQ. The exchange name and type are held
             as parameters to help with declaring the exchange.
+            This method will only setup the public queue.
+            The exchange will also be set on the public channel allowing other queues from other channels to connect
         '''
-        self._channel.exchange_declare(
+        self._public_channel.exchange_declare(
             exchange = RMQ_DEFAULT_EXCHANGE_NAME,
             exchange_type = RMQ_DEFAULT_EXCHANGE_TYPE,
             )
-        self._channel.queue_declare(queue = queue_name)
-        self._channel.queue_bind(exchange = RMQ_DEFAULT_EXCHANGE_NAME, queue = queue_name, routing_key = RMQ_ROUTING_KEY)
-        self._channel.basic_qos(prefetch_count = 1)
+        self.setup_queue(self._public_channel, RMQ_DEFAULT_PUBLIC_QUEUE)
+        
+    def setup_queue(self, queue_type, queue_name):
+        ''' This method will create a queue and immediately bind it to the exchange,
+            with respect to the channel that it was created in.
+        '''
+        queue_type.queue_declare(queue = queue_name)
+        queue_type.queue_bind(exchange = RMQ_DEFAULT_EXCHANGE_NAME, queue = queue_name, routing_key = RMQ_ROUTING_KEY)
+        queue_type.basic_qos(prefetch_count = 1)
 
-    def publish_message(self, message) -> bool:
+    def publish_message(self, message, channel_type) -> bool:
         ''' This method will attempt to publish a message to RabbitMQ.
             The method will inform of a successful publish or not through the terminal.
+            The channel type will be either the public or private channel
         '''
-        self._channel.confirm_delivery()
+        channel_type.confirm_delivery()
         try: 
-            self._channel.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 2), mandatory = True)
+            channel_type.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 2), mandatory = True)
             print(f' [x] "{message}" was sent to the MQ')
         except pika.exceptions.UnroutableError:
             print('Message was returned.')
             return False
-        self.connection_close()
         return True
         
-    def consume_message(self, destination_queue, max_messages):
-        ''' This method will consume a message from RabbitMQ
+    def consume_message(self, destination_queue, max_messages, channel_type):
+        ''' This method will consume a message from RabbitMQ.
+            This method will handle receiving messages and will let the user know if there are no messages in the queue.
+            The consume will be given 2 seconds for a response (after receiving some messages), then it will receive a NoneType and terminate
         '''
         message_list = []
+        current_message_count = 0
         try:
-            ''' How do I get this returned?
-                what is the format? there is an error with delivery but it comes with the correct message.
-                How do I control the amount of messages? What is the correct parameter that deals with this?
-            '''
-            for method_frame, properties, body in self._channel.consume(queue = destination_queue, inactivity_timeout = 3, auto_ack = True):
+            print(f' [x] Waiting for Messages on {destination_queue}...')
+            for method_frame, properties, body in channel_type.consume(queue = destination_queue, inactivity_timeout = 2, auto_ack = True):
+                print(type(method_frame))
                 if not method_frame == None:
+                    print('Current Messages Received:' + str(method_frame.delivery_tag))
                     message_list.append(body)
-                    if method_frame.delivery_tag == max_messages:
+                    if method_frame.delivery_tag % max_messages == 0:
                         break
+                    current_message_count += 1
+                else:
+                    break
 
         except pika.exceptions.UnroutableError:
             print(f' [x] "{destination_queue}" queue not found / No messages in "{destination_queue}"')
-
-        requeued_messages = self._channel.cancel()
+        requeued_messages = channel_type.cancel()
         print("Requeued %i messages " % requeued_messages)
-        self.connection_close()
         if len(message_list) == 0:
                 message_list.append('No messages currently in queue.')
         return message_list
-
-
-class MessageServer():
-    ''' This will help with the execution of the connection to RabbitMQ. 
-        This will also be sending an I/O signal to the class to send or receive messages.
-        Upon sending a request, the client will disconnect from the RabbitMQ server.
-    '''
-    def __init__(self) -> None:
-        ''' Set up all the RMQ settings within RMQConnection
-            Create and set up connection, channels, queues, exchanges, etc.
-        '''
-        self._server = RMQPublisher()
-        self._connection = self._server.establish_connection()
-
-    def send_message(self, message_content: str, target_queue: str = RMQ_DEFAULT_PUBLIC_QUEUE) -> bool:
-        ''' This will send a request to send a message to the exchange.
-            The exchange will distribute it to the queue based on the target queue.
-            it will only return a true if the message was sent correctly, false otherwise.
-        '''
-        self._server.setup_exchange(target_queue)
-        return self._server.publish_message(message_content)
-
-    def receieve_messages(self, num_messages: int = GET_ALL_MESSAGES, destination: str = RMQ_DEFAULT_PUBLIC_QUEUE) -> list:
-        ''' Get a set of messages and return them in a list
-            messages will be strings, so it will return a list of strings
-
-            The following error is found when using the private queue:
-            pika.exceptions.ChannelClosedByBroker: (404, "NOT_FOUND - no queue 'kevin' in vhost '/'")
-        '''
-        self._server.setup_exchange(destination)
-        return self._server.consume_message(destination_queue = destination, max_messages = num_messages)
