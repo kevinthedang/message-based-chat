@@ -20,11 +20,4 @@ This is a basic implementation of a distributed message chat server, rather than
 ## Useful Information
 * [RabbitMQ Introduction](https://www.rabbitmq.com/tutorials/tutorial-one-python.html)
 * [Pika Introduction](https://pika.readthedocs.io/en/stable/intro.html)
-* [Remote Procedure Call w/ Pika](https://www.rabbitmq.com/tutorials/tutorial-six-python.html)
-* [Connection with RabbitMQ](https://www.cloudamqp.com/blog/how-to-run-rabbitmq-with-python.html)
-* [Channel Basics](https://www.rabbitmq.com/channels.html#basics)
-* [Some RMQ Functionality](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume-ok)
-
-## Tutorial Videos
-* [Sample FastAPI Post](https://www.youtube.com/watch?v=wS9LfFtXdBs&ab_channel=codeme)
-* [RabbitMQ Basics](https://www.youtube.com/watch?v=Cie5v59mrTg&ab_channel=HusseinNasser)
+* [RabbitMQ Reference Guide](https://www.rabbitmq.com/amqp-0-9-1-reference.html#basic.consume-ok)
