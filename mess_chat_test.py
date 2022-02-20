@@ -1,9 +1,5 @@
 import unittest
 import mess_chat
-import logging
-
-# constant for logging format
-FORMAT = '%(asctime)s -- %(levelname)s -- %(message)s'
 
 class BasicTest(unittest.TestCase):
     """

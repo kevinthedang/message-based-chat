@@ -12,6 +12,7 @@ RMQ_DEFAULT_VH = '/'
 RMQ_DEFAULT_EXCHANGE_NAME = 'general'
 RMQ_DEFAULT_EXCHANGE_TYPE = 'fanout'
 RMQ_ROUTING_KEY = 'my_message'
+BYTE_to_STRING = 'utf-8'
 
 class MessageServer():
     ''' This is the RMQ Publisher
@@ -67,15 +68,16 @@ class MessageServer():
 
         # ------------------------------------------------------------------------------------------------------------------------------------
 
-    def server_setup(self):
+    def server_setup(self) -> bool:
         ''' This method sets up -> Server connection, The public and private channels, The public and private queues.
             This helps with testing the individual calls in the test file.
         '''
         self.establish_connection()
         self.setup_channels()
         self.setup_exchange()
+        return True
 
-    def establish_connection(self) -> True:
+    def establish_connection(self) -> bool:
         ''' This method will establish the connection to the RabbitMQ server.
             Proper authentication credentials and parameters are needed to access the server.
 
@@ -84,15 +86,17 @@ class MessageServer():
         credentials = pika.PlainCredentials(RMQ_USER, RMQ_PASS)
         parameters = pika.ConnectionParameters(host=RMQ_HOST, port=RMQ_PORT, virtual_host=RMQ_DEFAULT_VH, credentials=credentials)
         self._connection = pika.BlockingConnection(parameters=parameters)
+        return True
     
-    def setup_channels(self):
+    def setup_channels(self) -> bool:
         ''' This method will open both the public and the select private channel
             for sending messages.
         '''
         self._public_channel = self._connection.channel()
         self._private_channel = self._connection.channel()
+        return True
 
-    def setup_exchange(self):
+    def setup_exchange(self) -> bool:
         ''' Set up the exchange on RabbitMQ. The exchange name and type are held
             as parameters to help with declaring the exchange.
             This method will setup the default public and private queue.
@@ -104,38 +108,22 @@ class MessageServer():
             )   
         self.setup_queue(self._public_channel, RMQ_DEFAULT_PUBLIC_QUEUE)
         self.setup_queue(self._private_channel, RMQ_DEFAULT_PRIVATE_QUEUE)
+        return True
         
-    def setup_queue(self, queue_type, queue_name):
+    def setup_queue(self, queue_type, queue_name) -> bool:
         ''' This method will create a queue and immediately bind it to the exchange,
             with respect to the channel that it was created in.
         '''
         queue_type.queue_declare(queue = queue_name)
         queue_type.queue_bind(exchange = RMQ_DEFAULT_EXCHANGE_NAME, queue = queue_name, routing_key = RMQ_ROUTING_KEY)
         queue_type.basic_qos(prefetch_count = 1)
-
-    def remove_queue(self, channel_type):
-        ''' Will remove the queue that is not supposed to receive the message for a target queue.
-        '''
-        if channel_type == RMQ_DEFAULT_PUBLIC_QUEUE:
-            self._private_channel.queue_delete(self._private_queue_name)
-        else:
-            self._public_channel.queue_delete(RMQ_DEFAULT_PUBLIC_QUEUE)
-
-
-    def remake_queue(self, channel_type):
-        ''' Will re-setup the queue that was removed.
-        '''
-        if channel_type == RMQ_DEFAULT_PUBLIC_QUEUE:
-            self.setup_queue(self._private_channel, self._private_queue_name)
-        else:
-            self.setup_queue(self._public_channel, RMQ_DEFAULT_PUBLIC_QUEUE)
+        return True
 
     def publish_message(self, message, channel_type) -> bool:
         ''' This method will attempt to publish a message to RabbitMQ.
             The method will inform of a successful publish or not through the terminal.
             The channel type will be either the public or private channel
         '''
-        self.remove_queue(channel_type)
         channel_type.confirm_delivery()
         try: 
             channel_type.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 1), mandatory = True)
@@ -143,25 +131,24 @@ class MessageServer():
         except pika.exceptions.UnroutableError:
             print('Message was returned.')
             return False
-        self.remake_queue(channel_type)
         return True
         
-    def consume_message(self, destination_queue, max_messages, channel_type):
+    def consume_message(self, destination_queue, max_messages, channel_type) -> list:
         ''' This method will consume a message from RabbitMQ.
             This method will handle receiving messages and will let the user know if there are no messages in the queue.
             The consume will be given 2 seconds for a response (after receiving some messages), then it will receive a NoneType and terminate
         '''
         message_list = []
-        current_message_count = 0
+        message_increment = 0
         try:
             print(f' [x] Waiting for Messages on {destination_queue}...')
             for method_frame, properties, body in channel_type.consume(queue = destination_queue, inactivity_timeout = 2, auto_ack = True):
                 if not method_frame == None:
                     print('Current Messages Received:' + str(method_frame.delivery_tag))
-                    message_list.append(body)
-                    if method_frame.delivery_tag % max_messages == 0:
+                    message_list.append(body.decode(BYTE_to_STRING))
+                    if message_increment == max_messages:
                         break
-                    current_message_count += 1
+                    message_increment += 1
                 else:
                     break
         except pika.exceptions.UnroutableError:
