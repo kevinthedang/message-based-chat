@@ -37,36 +37,11 @@ class RMQTest(unittest.TestCase):
 
         message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
         self.assertEqual(TEST_NO_PUBLISHES, message_list, 'Messages do not match')
-
+        
         self.assertTrue(server.publish_message('', channel_type = server._public_channel))
         message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
         self.assertEqual(len(message_list), len(TEST_0_PUBLISHES), 'Length does not match')
         self.assertEqual(TEST_0_PUBLISHES, message_list, 'Messages do not match')
-
-        self.assertTrue(server.publish_message('Hello World!', channel_type = server._public_channel))
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
-        self.assertEqual(len(message_list), len(TEST_1_PUBLISHES), 'Length does not match')
-        self.assertEqual(TEST_1_PUBLISHES, message_list, 'Messages do not match')
-
-        self.assertTrue(server.publish_message('I am here!', channel_type = server._public_channel))
-        self.assertTrue(server.publish_message('I am here too!', channel_type = server._public_channel))
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 5, channel_type = server._public_channel)
-        self.assertEqual(len(message_list), len(TEST_2_PUBLISHES), 'Length does not match')
-        self.assertEqual(TEST_2_PUBLISHES, message_list, 'Messages do not match')
-
-        self.assertTrue(server.publish_message('I am here!', channel_type = server._public_channel))
-        self.assertTrue(server.publish_message('I am here too!', channel_type = server._public_channel))
-        self.assertTrue(server.publish_message('Am I here too?', channel_type = server._public_channel))
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
-        self.assertNotEqual(len(message_list), len(TEST_3_PUBLISHES), 'Length should not match')
-        self.assertNotEqual(TEST_3_PUBLISHES, message_list, 'Messages should not match')
-
-        self.assertTrue(server.publish_message('I am here!', channel_type = server._public_channel))
-        self.assertTrue(server.publish_message('I am here too!', channel_type = server._public_channel))
-        self.assertTrue(server.publish_message('Am I here too?', channel_type = server._public_channel))
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 3, channel_type = server._public_channel)
-        self.assertEqual(len(message_list), len(TEST_3_PUBLISHES), 'Lengths should match')
-        self.assertEqual(TEST_3_PUBLISHES, message_list, 'Messages should match')
 
     def test_more_messages(self):
         ''' We want to test if the can publish and subscribe to RabbitMQ.
@@ -74,10 +49,11 @@ class RMQTest(unittest.TestCase):
         '''
         server = MessageServer()
         self.assertTrue(server.server_setup())
-
+        '''
         for message in TEST_MANY_PUBLISHES:
             self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
+
         message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_MANY_PUBLISHES), channel_type = server._public_channel)
         self.assertEqual(len(message_list), len(TEST_MANY_PUBLISHES), 'Length does not match')
         self.assertEqual(TEST_MANY_PUBLISHES, message_list, 'Messages do not match')
-    
+        '''

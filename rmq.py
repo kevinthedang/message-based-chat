@@ -1,13 +1,12 @@
 import pika
 
 GET_ALL_MESSAGES = -1
-RMQ_HOST = 'cps-devops.gonzaga.edu'
+RMQ_HOST = '35.236.51.203'
 RMQ_PORT = 5672
 RMQ_USER = 'class'
 RMQ_PASS = 'CPSC313'
 RMQ_DEFAULT_PUBLIC_QUEUE = 'general'
 RMQ_DEFAULT_PRIVATE_QUEUE = 'kevin'
-RMQ_TEST_HOST = 'localhost'
 RMQ_DEFAULT_VH = '/'
 RMQ_DEFAULT_EXCHANGE_NAME = 'general'
 RMQ_DEFAULT_EXCHANGE_TYPE = 'fanout'
@@ -62,8 +61,6 @@ class MessageServer():
             self._private_queue_name = queue_to_handle
             return self._private_channel
         return self._public_channel
-
-        # ------------------------------------------------------------------------------------------------------------------------------------
 
     def server_setup(self) -> bool:
         ''' This method sets up -> Server connection, The public and private channels, The public and private queues.
@@ -156,9 +153,3 @@ class MessageServer():
             print(f' [x] No messages in "{destination_queue}"')
             message_list.append('No messages currently in queue.')
         return message_list
-
-    def clear_messages(self):
-        ''' This method is used when testing to make sure the queues are cleared.
-        '''
-        self._public_channel.basic_purge(RMQ_DEFAULT_PUBLIC_QUEUE)
-        self._private_channel.basic_purge(self._private_queue_name)
