@@ -13,7 +13,7 @@ TEST_MANY_PUBLISHES = ['Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', '
                         'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 
                         'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.', 'Spam Test.']
 
-class BasicTest(unittest.TestCase):
+class RMQTest(unittest.TestCase):
     ''' Basic testing class for the exchange of messages and setup for RMQ.
     '''
 
