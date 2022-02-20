@@ -55,14 +55,11 @@ class MessageServer():
             closes the previous one if it exists
         '''
         if queue_to_handle != RMQ_DEFAULT_PUBLIC_QUEUE:
-            print('Current Queue:' + queue_to_handle)
             if self._has_private_queue is True and queue_to_handle != self._private_queue_name:
-                print('Private-Queue Overwritten')
                 self._private_channel.queue_delete(self._private_queue_name)
             self.setup_queue(self._private_channel, queue_to_handle)
             self._has_private_queue = True
             self._private_queue_name = queue_to_handle
-            print('Current Private-Queue name:' + self._private_queue_name)
             return self._private_channel
         return self._public_channel
 
@@ -127,7 +124,7 @@ class MessageServer():
         channel_type.confirm_delivery()
         try: 
             channel_type.basic_publish(exchange = RMQ_DEFAULT_EXCHANGE_NAME, routing_key = RMQ_ROUTING_KEY, body = message, properties = pika.BasicProperties(delivery_mode = 1), mandatory = True)
-            print(f' [x] "{message}" was sent to the MQ')
+            print(f' [x] "{message}" was sent to the queue!')
         except pika.exceptions.UnroutableError:
             print('Message was returned.')
             return False
@@ -142,19 +139,26 @@ class MessageServer():
         message_increment = 0
         try:
             print(f' [x] Waiting for Messages on {destination_queue}...')
-            for method_frame, properties, body in channel_type.consume(queue = destination_queue, inactivity_timeout = 2, auto_ack = True):
+            for method_frame, properties, body in channel_type.consume(queue = destination_queue, inactivity_timeout = 3, auto_ack = True):
                 if not method_frame == None:
-                    print('Current Messages Received:' + str(method_frame.delivery_tag))
                     message_list.append(body.decode(BYTE_to_STRING))
-                    if message_increment == max_messages:
-                        break
+                    print(f' [{message_increment + 1}] Current Message Received: ' + message_list[message_increment])
                     message_increment += 1
+                    if message_increment == max_messages:
+                        channel_type.basic_recover(requeue = True)
+                        print(f' [x] {channel_type.get_waiting_message_count()} messages have been requeued.')
+                        break
                 else:
                     break
         except pika.exceptions.UnroutableError:
-            print(f' [x] "{destination_queue}" queue not found / No messages in "{destination_queue}"')
-        requeued_messages = channel_type.cancel()
-        print(" [x] Requeued %i messages " % requeued_messages)
+            print(f' [x] "{destination_queue}" queue not found')
         if len(message_list) == 0:
-                message_list.append('No messages currently in queue.')
+            print(f' [x] No messages in "{destination_queue}"')
+            message_list.append('No messages currently in queue.')
         return message_list
+
+    def clear_messages(self):
+        ''' This method is used when testing to make sure the queues are cleared.
+        '''
+        self._public_channel.basic_purge(RMQ_DEFAULT_PUBLIC_QUEUE)
+        self._private_channel.basic_purge(self._private_queue_name)
