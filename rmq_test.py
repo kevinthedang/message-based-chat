@@ -1,3 +1,4 @@
+from cgi import test
 import unittest
 from rmq import RMQ_DEFAULT_PUBLIC_QUEUE, MessageServer
 
@@ -35,13 +36,10 @@ class RMQTest(unittest.TestCase):
         server = MessageServer()
         self.assertTrue(server.server_setup())
 
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
-        self.assertEqual(TEST_NO_PUBLISHES, message_list, 'Messages do not match')
-        
-        self.assertTrue(server.publish_message('', channel_type = server._public_channel))
-        message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = 1, channel_type = server._public_channel)
-        self.assertEqual(len(message_list), len(TEST_0_PUBLISHES), 'Length does not match')
-        self.assertEqual(TEST_0_PUBLISHES, message_list, 'Messages do not match')
+        self.assertTrue(server.publish_message(TEST_1_PUBLISHES, channel_type = server._public_channel))
+        test_1 = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_1_PUBLISHES), channel_type = server._public_channel)
+        self.assertEqual(len(TEST_1_PUBLISHES), len(test_1), 'Length does not match')
+        self.assertEqual(TEST_1_PUBLISHES, test_1, 'Messages do not match')
 
     def test_more_messages(self):
         ''' We want to test if the can publish and subscribe to RabbitMQ.
@@ -49,11 +47,11 @@ class RMQTest(unittest.TestCase):
         '''
         server = MessageServer()
         self.assertTrue(server.server_setup())
-        '''
+        
         for message in TEST_MANY_PUBLISHES:
             self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
 
         message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_MANY_PUBLISHES), channel_type = server._public_channel)
         self.assertEqual(len(message_list), len(TEST_MANY_PUBLISHES), 'Length does not match')
         self.assertEqual(TEST_MANY_PUBLISHES, message_list, 'Messages do not match')
-        '''
+        
