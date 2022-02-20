@@ -1,4 +1,3 @@
-from cgi import test
 import unittest
 from rmq import RMQ_DEFAULT_PUBLIC_QUEUE, MessageServer
 
@@ -29,17 +28,46 @@ class RMQTest(unittest.TestCase):
 
     def test_publish_and_receive(self):
         ''' We want to test if the can publish and subscribe to RabbitMQ.
-            Case 1: Test for one messaage
-            Case 2: Test for 2 messages with a greater max_messages
-            Case 3: Test for not equaling with a smaller max_messages
+            Case 1: No Messages
+            Case 2: Empty String Message
+            Case 3: Test for one messaage
+            Case 4: Test for 2 messages
+            Case 5: Test for 3 messages
+            Case 6: Test for 3 messages with a greater max_messages
         '''
         server = MessageServer()
         self.assertTrue(server.server_setup())
 
-        self.assertTrue(server.publish_message(TEST_1_PUBLISHES, channel_type = server._public_channel))
+        test_none = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_NO_PUBLISHES), channel_type = server._public_channel)
+        self.assertEqual(len(TEST_NO_PUBLISHES), len(test_none), 'Length does not match')
+
+        self.assertTrue(server.publish_message(TEST_0_PUBLISHES[0], channel_type = server._public_channel))
+        test_empty_string = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_0_PUBLISHES), channel_type = server._public_channel)
+        self.assertEqual(len(TEST_0_PUBLISHES), len(test_empty_string), 'Length does not match')
+        self.assertEqual(TEST_0_PUBLISHES, test_empty_string, 'Messages do not match')
+
+        self.assertTrue(server.publish_message(TEST_1_PUBLISHES[0], channel_type = server._public_channel))
         test_1 = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_1_PUBLISHES), channel_type = server._public_channel)
         self.assertEqual(len(TEST_1_PUBLISHES), len(test_1), 'Length does not match')
         self.assertEqual(TEST_1_PUBLISHES, test_1, 'Messages do not match')
+
+        for message in TEST_2_PUBLISHES:
+            self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
+        test_2 = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_1_PUBLISHES), channel_type = server._public_channel)
+        self.assertEqual(len(TEST_2_PUBLISHES), len(test_2), 'Length does not match')
+        self.assertEqual(TEST_2_PUBLISHES, test_2, 'Messages do not match')
+
+        for message in TEST_3_PUBLISHES:
+            self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
+        test_3 = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_1_PUBLISHES), channel_type = server._public_channel)
+        self.assertEqual(len(TEST_3_PUBLISHES), len(test_3), 'Length does not match')
+        self.assertEqual(TEST_3_PUBLISHES, test_3, 'Messages do not match')
+
+        for message in TEST_3_PUBLISHES:
+            self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
+        test_3 = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_1_PUBLISHES) + 3, channel_type = server._public_channel)
+        self.assertEqual(len(TEST_3_PUBLISHES), len(test_3), 'Length does not match')
+        self.assertEqual(TEST_3_PUBLISHES, test_3, 'Messages do not match')
 
     def test_more_messages(self):
         ''' We want to test if the can publish and subscribe to RabbitMQ.
@@ -49,7 +77,7 @@ class RMQTest(unittest.TestCase):
         self.assertTrue(server.server_setup())
         
         for message in TEST_MANY_PUBLISHES:
-            self.assertTrue(server.publish_message(message, channel_type = server._public_channel))
+            server.publish_message(message, channel_type = server._public_channel)
 
         message_list = server.consume_message(destination_queue = RMQ_DEFAULT_PUBLIC_QUEUE, max_messages = len(TEST_MANY_PUBLISHES), channel_type = server._public_channel)
         self.assertEqual(len(message_list), len(TEST_MANY_PUBLISHES), 'Length does not match')
